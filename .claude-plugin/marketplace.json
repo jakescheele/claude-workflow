@@ -1,0 +1,16 @@
+{
+  "name": "claude-workflow",
+  "owner": {
+    "name": "jakescheele"
+  },
+  "metadata": {
+    "description": "A worktree-based feature workflow for Claude Code teams."
+  },
+  "plugins": [
+    {
+      "name": "workflow",
+      "source": "./plugins/workflow",
+      "description": "Worktree-based feature workflow: implement, commit, finish, release, doc-audit, log-meeting, plus a protected-branch guard. Configured per repo by .claude/workflow.md."
+    }
+  ]
+}
