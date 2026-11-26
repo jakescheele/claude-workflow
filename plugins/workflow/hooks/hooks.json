@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/guard-protected-branch.py\"",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run-guard.sh\"",
             "timeout": 15
           }
         ]

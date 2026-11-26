@@ -8,7 +8,8 @@ protected_branches: [main, dev]
 
 # Branch names. Placeholders: <type> (feat|fix|refactor|docs|chore), <slug>, <issue>
 branch_pattern: "<type>/<slug>"   # with issue numbers: "<type>/i<issue>-<slug>"
-worktree_dir: .claude/worktrees   # worktree path = <worktree_dir>/<branch with / replaced by ->
+worktree_dir: .claude/worktrees   # worktree path = <worktree_dir>/<worktree name>
+worktree_naming: flat             # flat: feat/x -> feat-x. nested: keep the folders (worktrees/feat/x, plans/feat/x.md)
 
 install: npm install              # run inside a new worktree. "none" to skip.
 copy_into_worktree: [.env.local]  # gitignored files copied from the main checkout into a new worktree
@@ -33,17 +34,20 @@ issues:
   enabled: true               # link work to GitHub issues
   required: false             # true: no branch without an issue
   claim_label: "status: in-progress"
+  claim_when: after_plan      # after_plan: claim once the plan is approved. before_plan: claim first, so two people can't plan the same issue
+  claim_marker: workflow-claim  # first line of claim comments is <!-- claim_marker -->; match it if your own tooling reads claims
   in_dev_label: "status: in-dev"   # set when merged to base_branch; issue closes at release
   type_labels: {feat: enhancement, fix: bug, docs: documentation}   # label for issues the skills create; unlisted types (chore, refactor) get none
   milestone: ""               # milestone for created issues, if the repo uses one
 
 commit_trailer: true          # add the Co-Authored-By: Claude trailer to commits (not PRs). false if a deploy host rejects unknown co-authors (Vercel Hobby).
-checkpoint_commits: ask       # during /workflow:implement: ask | never
+checkpoint_commits: ask       # during /workflow:implement: ask | auto (commit and push after each passing verify, e.g. for branch previews) | never
 
 version_file: package.json    # where the release version lives ("none" if unversioned)
 tag:
   enabled: true               # /workflow:release offers a GitHub release + tag after merge
   prefix: v                   # v1.4.0
+  prerelease: false           # true marks the GitHub release as a pre-release (beta builds)
 ---
 
 # Workflow notes

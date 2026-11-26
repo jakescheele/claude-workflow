@@ -1,6 +1,7 @@
 ---
 name: release
 description: Ship base_branch into release_branch through a pull request. Fetches and compares the branches, drafts a changelog, checks each in-dev issue (complete or hold), runs the project's "Release steps", opens the release PR, merges it after confirmation without squashing, closes shipped issues, and optionally tags. Use when the user asks to release, ship to production, or merge dev into main.
+disable-model-invocation: true
 ---
 
 # /workflow:release: ship base_branch into release_branch
@@ -99,8 +100,8 @@ Run the bullets under `## Release steps` in order. If the section is missing or 
   and ask whether to stop (recommended) or continue. Never report a failed check as passed.
 - **A step that changes files** (a version bump, an in-app changelog entry) cannot be committed on
   `base_branch`. Land it like any other change:
-  1. Create a worktree from `origin/<base_branch>` at `<worktree_dir>/chore-release-<version>` on
-     branch `chore/release-<version>`; run `install`, copy `copy_into_worktree` files.
+  1. Create a worktree from `origin/<base_branch>` (path named as `/workflow:implement` names it, per `worktree_naming`) on
+     the branch from `branch_pattern` with type `chore` and slug `release-<version>` (default `chore/release-<version>`; if the pattern needs `<issue>`, first find or create an issue titled `chore: bump version to <version>` after asking, so branch-name hooks accept it); run `install`, copy `copy_into_worktree` files.
   2. Make the edit. For user-facing copy (release notes shown in the app), show the draft and let
      the user reword it before writing.
   3. Run every `verify` command; all must pass. Commit (`chore: bump version to <version>`, with the
@@ -175,7 +176,7 @@ Run the bullets under `## Release steps` in order. If the section is missing or 
    still outstanding, so the next session is not misled.
 4. **Tag** (if selected), on the merge commit, never on a local branch tip:
    ```bash
-   gh release create "v<version>" --target <MERGE_SHA> --title "v<version>" --notes-file <changelog path>
+   gh release create "v<version>" --target <MERGE_SHA> --title "v<version>" --notes-file <changelog path>    # add --prerelease when tag.prerelease is true
    ```
    Tags are not branch pushes, so protected-branch rules still hold.
 5. **Report:** PR URL, merge method, version and tag (or "untagged"), issues closed, issues held

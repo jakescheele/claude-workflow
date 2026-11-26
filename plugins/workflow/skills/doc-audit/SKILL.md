@@ -1,6 +1,7 @@
 ---
 name: doc-audit
 description: Audit this repo's docs (the files listed under "## Docs" in .claude/workflow.md, plus CLAUDE.md) against the actual code with parallel read-only agents, report conflicts, undocumented code, unimplemented specs and stale claims, then walk the user through resolving each item. Use when the user asks to audit, check or sync docs against the codebase, or suspects doc drift.
+disable-model-invocation: true
 ---
 
 # /workflow:doc-audit: docs vs code

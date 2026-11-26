@@ -14,7 +14,8 @@ per repo by a small `.claude/workflow.md` file.
 | `/workflow:log-meeting <fathom link>` | Turns a Fathom recording into a meeting note with personal details removed, then files the issues you approve |
 
 The plugin also ships a **protected-branch guard**: before any `git commit` or `git push` that
-would land on a protected branch, Claude Code asks you first.
+would land on a protected branch, Claude Code asks you first. It runs with whichever of `python3`, `python` or `py`
+works (so it also works on Windows), and if none does it stays out of the way.
 
 ## Install
 

@@ -17,7 +17,7 @@ Below, "the request" means that text (a feature description, or an issue referen
    MAIN_ROOT=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
    ```
 2. Read `.claude/workflow.md` from the current worktree if you are in one (`git rev-parse --show-toplevel`), else from `$MAIN_ROOT`, falling back to `$MAIN_ROOT` if the worktree has none. `/workflow:finish` uses the same order, so a branch that edits workflow.md sees the same settings in both. If neither exists, STOP and tell the user: "This repo has no `.claude/workflow.md`. Run `/workflow:setup` first." Do nothing else.
-3. Parse the YAML frontmatter. Keys left out take the defaults shown in the plugin template. Keep these in mind for the whole run: `base_branch`, `protected_branches`, `branch_pattern`, `worktree_dir`, `install`, `copy_into_worktree`, `worktree_setup`, `dev_server`, `verify`, `commit_trailer`, `checkpoint_commits`, `issues.*`. Also read the body sections `## Plan sections`, `## Implementation rules`, `## Agents`, `## Docs`, `## Lessons` if present.
+3. Parse the YAML frontmatter. Keys left out take the defaults shown in the plugin template. Keep these in mind for the whole run: `base_branch`, `protected_branches`, `branch_pattern`, `worktree_dir`, `worktree_naming`, `install`, `copy_into_worktree`, `worktree_setup`, `dev_server`, `verify`, `commit_trailer`, `checkpoint_commits`, `issues.*`. Also read the body sections `## Plan sections`, `## Implementation rules`, `## Agents`, `## Docs`, `## Lessons` if present.
 4. Read `$MAIN_ROOT/CLAUDE.md` (and any CLAUDE.md it points to). Its rules apply throughout.
 
 Below, `<base>` means `base_branch` and `<wt_dir>` means `$MAIN_ROOT/<worktree_dir>`.
@@ -30,13 +30,15 @@ Below, `<base>` means `base_branch` and `<wt_dir>` means `$MAIN_ROOT/<worktree_d
 - Ask before deleting anything: files, branches, worktrees, labels, issue comments.
 - Never start a dev server or other long-running process. Print the command for the user instead.
 - Never print or commit the contents of files listed in `copy_into_worktree` (they usually hold secrets).
-- Any time you give the user a `cd` command, put it alone in its own fenced `bash` block with the fully resolved absolute path.
+- Any time you give the user a `cd` command, put it alone in its own fenced `bash` block with the fully resolved absolute path, unless `## Implementation rules` says how to format commands for this project.
+
+**Web and phone sessions** (`CLAUDE_CODE_REMOTE` is set): the session already runs in its own disposable checkout, so there are no worktrees. Create the feature branch right there (`git fetch origin <base>` then `git switch -c <branch> origin/<base>`), skip the worktree steps (Phase 1 steps 5 and 9, the copy step, and the dev server command), and keep everything else, including the plan file and approval. In the Session Guard, treat this checkout as the feature's worktree: write its path on the plan's `Worktree` line, and do not stop because it is not on `<base>`. If `gh` is not available, use the GitHub MCP tools for issue and PR steps when they are loaded; otherwise tell the user exactly which issue step to do by hand and continue.
 
 ---
 
 ## Session Guard (run every time, before anything else)
 
-1. List plan files with `find "$MAIN_ROOT/.claude/plans" -maxdepth 1 -name '*.md' 2>/dev/null` (a bare `*.md` glob errors in zsh when there are none). For each, read the `> **Worktree:**`, `> **Branch:**` and optional `> **Issue:**` header lines. Also run `git worktree list`: worktrees with no plan file (older or hand-made ones) are mentioned in one line, never touched.
+1. List plan files with `find "$MAIN_ROOT/.claude/plans" -name '*.md' 2>/dev/null` (a bare `*.md` glob errors in zsh when there are none; plans can sit in subfolders when `worktree_naming` is `nested`). For each, read the `> **Worktree:**`, `> **Branch:**` and optional `> **Issue:**` header lines. Also run `git worktree list`: worktrees with no plan file (older or hand-made ones) are mentioned in one line, never touched.
 2. Run `git branch --show-current` and `git rev-parse --show-toplevel`.
 3. **Inside a worktree** (toplevel is under `<wt_dir>`): the current branch must match the plan whose `Worktree` is this directory. If it does not match, or no plan exists for it, tell the user "You're on `<current>` but the active feature here is `<expected>` at `<worktree>`." and STOP. Ask how to proceed; never continue silently on the wrong branch. If it matches and there is no request or the request refers to this work, resume at the right phase (Phase 2 if the plan is not approved yet, else Phase 3).
 4. **In the main checkout:** if the current branch is not `<base>`, STOP and tell the user the main checkout should be on `<base>`; ask them how to proceed (do not switch it yourself if it has uncommitted changes). If active plans exist, list them in one line. If one matches the request (same issue or clearly the same work), ask via `AskUserQuestion`: `Resume <branch>` / `Start new work`. Resuming means `cd` into its worktree and continuing at Phase 2 or 3.
@@ -63,15 +65,15 @@ Below, `<base>` means `base_branch` and `<wt_dir>` means `$MAIN_ROOT/<worktree_d
    b. **Create** (only after the user picked it): `gh issue create --title "<from the request, without a conventional prefix like chore:>" --body "Tracked via /workflow:implement."`, adding `--label` from `issues.type_labels` for the type (if the type is listed there and the label exists; unlisted types get no type label) and `--milestone` when `issues.milestone` is set. Capture the number.
    c. **Block on an existing claim.** `gh issue view $ISSUE_NUM --json labels,assignees,comments`. If it already has `issues.claim_label`, STOP, show the latest claim comment (who, when, branch), and ask via `AskUserQuestion`: `Coordinate first` (abort) / `Pick a different issue` / `Take it over` (proceed and post a takeover comment).
    d. **Check the label exists:** `gh label list --search "<claim_label>"`. If it is missing, ask once before creating it.
-   e. **Claim** (only after the plan is approved, at the start of Phase 3, so a rejected plan leaves no stale claim):
+   e. **Claim.** When `issues.claim_when` is `after_plan` (default), claim at the start of Phase 3, so a rejected plan leaves no stale claim. When it is `before_plan`, claim now, before planning, so two people cannot plan the same issue at once; if the plan is then rejected or abandoned, ask whether to remove the label and post a release comment.
       ```bash
       gh issue edit $ISSUE_NUM --add-label "<claim_label>"
       gh issue comment $ISSUE_NUM --body-file <tmp file>
       ```
-      Comment body: first line `<!-- workflow-claim -->`, then lines for author (`git config user.name`), started (ISO 8601 UTC), branch, and worktree path.
+      Comment body: first line `<!-- <issues.claim_marker> -->` (default `workflow-claim`; repos whose own tooling reads claim comments set their marker), then lines for author (`git config user.name`), started (ISO 8601 UTC), branch, and worktree path, plus any extra claim fields `## Implementation rules` asks for.
    f. Carry `$ISSUE_NUM` and its title forward to the plan header.
 
-4. **Derive names.** Slug: 3 to 6 meaningful words from the issue title (or the request), lowercase, joined with hyphens. Drop filler words and file names, turn punctuation (`.`, `/`) into word breaks rather than gluing words together, and never cut a word in half; keep it under 50 characters. State the branch name in the setup summary. Fill `branch_pattern` with `<type>`, `<slug>`, `<issue>`. Worktree name = branch with `/` replaced by `-`. Worktree path = `<wt_dir>/<worktree name>`. If the branch already exists locally or on origin, or is in `protected_branches`, STOP and ask.
+4. **Derive names.** Slug: 3 to 6 meaningful words from the issue title (or the request), lowercase, joined with hyphens. Drop filler words and file names, turn punctuation (`.`, `/`) into word breaks rather than gluing words together, and never cut a word in half; keep it under 50 characters. State the branch name in the setup summary. Fill `branch_pattern` with `<type>`, `<slug>`, `<issue>`. Worktree name = branch with `/` replaced by `-` when `worktree_naming` is `flat` (default), or the branch name as is when it is `nested` (folders like `feat/x`). Worktree path = `<wt_dir>/<worktree name>`. If the branch already exists locally or on origin, or is in `protected_branches`, STOP and ask.
 
 5. **Create the worktree** from the fresh remote base, without tracking base:
    ```bash
@@ -107,7 +109,7 @@ Below, `<base>` means `base_branch` and `<wt_dir>` means `$MAIN_ROOT/<worktree_d
    ```
    The plan must build on recent `<base>` commits to the same logic, not redo or undo them. List open PRs and other worktrees touching the same files.
 
-Write the plan to `$MAIN_ROOT/.claude/plans/<worktree name>.md` and show it to the user. It must start with this header so any later session can find the worktree:
+Write the plan to `$MAIN_ROOT/.claude/plans/<worktree name>.md` (create parent folders for `nested` names) and show it to the user. It must start with this header so any later session can find the worktree:
 
 ```
 > **Worktree:** `<worktree path>`
@@ -133,13 +135,13 @@ Write the plan to `$MAIN_ROOT/.claude/plans/<worktree name>.md` and show it to t
 
 **Gate.** Run the Session Guard. If not inside the worktree, find it from the plan's `Worktree` line (or `git worktree list`) and `cd` into it. If it no longer exists, STOP and tell the user to run `/workflow:implement` again. Do not recreate it silently.
 
-**Claim the issue** now (Phase 1 step 3e), if one is linked and not yet claimed.
+**Claim the issue** now (Phase 1 step 3e), if one is linked, `issues.claim_when` is `after_plan`, and it is not yet claimed.
 
 1. **Implement** the approved plan, following CLAUDE.md and every bullet under `## Implementation rules` in workflow.md. Use the project agents listed under `## Agents` when their condition applies; otherwise use a `.claude/agents/` agent only when it clearly fits a step.
 2. **Verify.** Run each `verify` command in order from the worktree root. Fix failures and rerun until all pass. If a command fails because the tooling does not exist yet, report it and ask whether to skip that gate or add the tooling.
 3. **Docs sync.** Update the docs named in the plan's Docs Impact and any `## Docs` entry the change makes stale. If the code conflicts with a doc, STOP and ask: update the doc, or revert the code? Rerun `verify` if doc sync touched code.
 4. **No review here.** `/workflow:finish` reviews the whole branch once, after syncing with base. Only run a review now if the user asks for one.
-5. **Checkpoint commit** (skip if `checkpoint_commits` is `never`). Draft the commit message first, then ask via `AskUserQuestion` with the message in the question: `Commit and push (Recommended)` / `Commit only` / `Edit the message` / `Not now`. If committing:
+5. **Checkpoint commit** (skip if `checkpoint_commits` is `never`). With `ask` (default), draft the commit message first, then ask via `AskUserQuestion` with the message in the question: `Commit and push (Recommended)` / `Commit only` / `Edit the message` / `Not now`. With `auto`, commit and push without asking after every passing verify (here and after each fix round), for repos whose preview builds track the branch; still never commit when verify fails. If committing:
    - `git branch --show-current` must match the plan's branch and must not be in `protected_branches`; otherwise STOP and run the Session Guard.
    - Run `git status --short` and check for secrets, files from `copy_into_worktree`, large binaries, or build output. Stage specific paths, not blindly.
    - Commit with a conventional subject matching the type (`feat: add follow button`). Add the `Co-Authored-By` trailer only if `commit_trailer` is true.

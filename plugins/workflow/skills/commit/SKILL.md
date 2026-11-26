@@ -1,6 +1,7 @@
 ---
 name: commit
 description: Checkpoint the current feature branch. Runs every verify command from .claude/workflow.md, stages safely, commits with an approved conventional message, and pushes the branch. Refuses protected branches and base_branch. No PR, merge, or cleanup; use /workflow:finish for that.
+disable-model-invocation: true
 ---
 
 # /workflow:commit
