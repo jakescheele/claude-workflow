@@ -1,6 +1,6 @@
 {
   "name": "workflow",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Worktree-based feature workflow: implement, commit, finish, release, doc-audit, log-meeting, plus a protected-branch guard. Configured per repo by .claude/workflow.md.",
   "author": {
     "name": "jakescheele"
