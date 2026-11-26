@@ -42,11 +42,18 @@ key and its default.
 - Dev servers are never started by Claude; the command is printed for you.
 
 ## Changing the plugin
-Claude Code runs an installed copy from `~/.claude/plugins/cache/`, not this folder. After
-editing a skill:
-1. Bump `version` in `plugins/workflow/.claude-plugin/plugin.json`.
-2. Run `claude plugin marketplace update claude-workflow` and `claude plugin update workflow@claude-workflow`.
+Claude Code runs an installed copy from `~/.claude/plugins/cache/`, not a git checkout.
+1. Change the skill on a feature branch, bump `version` in
+   `plugins/workflow/.claude-plugin/plugin.json`, and merge it into `main` through a pull request.
+2. On each machine, pick up the new version:
+   ```
+   claude plugin marketplace update claude-workflow
+   claude plugin update workflow@claude-workflow
+   ```
 3. Start a new session (a running session keeps the skill text it already loaded).
+
+To try a change before merging, point a session at the checkout with
+`claude --plugin-dir ./plugins/workflow`.
 
 ## License
 MIT
